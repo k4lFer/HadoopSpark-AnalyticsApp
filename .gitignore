@@ -1,0 +1,6 @@
+data/*.csv
+logs/
+__pycache__/
+*.pyc
+.env
+docker-compose.override.yml

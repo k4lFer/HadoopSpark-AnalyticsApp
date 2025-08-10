@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard - Hadoop & Spark</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        .sidebar {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            min-height: 100vh;
+            color: white;
+        }
+        .main-content {
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        .query-panel {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-ok { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            border: none;
+        }
+        .nav-link {
+            color: rgba(255,255,255,0.8) !important;
+            transition: all 0.3s;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: white !important;
+            background-color: rgba(255,255,255,0.1);
+        }
+        .table-responsive {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-2 sidebar p-3">
+                <h4><i class="fas fa-chart-bar me-2"></i>Analytics</h4>
+                <hr>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" onclick="showSection(event,'overview')">
+                            <i class="fas fa-tachometer-alt me-2"></i>Panel Principal
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection(event,'upload')">
+                            <i class="fas fa-upload me-2"></i>Cargar Datos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection(event,'query')">
+                            <i class="fas fa-search me-2"></i>Consultas SQL
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection(event,'aggregate')">
+                            <i class="fas fa-calculator me-2"></i>Agregaciones
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection(event,'sample')">
+                            <i class="fas fa-table me-2"></i>Vista de Datos
+                        </a>
+                    </li>
+                </ul>
+                
+                <!-- Estado del Sistema -->
+                <div class="mt-4">
+                    <h6>Estado del Sistema</h6>
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="status-indicator me-2" id="flask-status"></span>
+                        <small>Flask API</small>
+                    </div>
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="status-indicator me-2" id="spark-status"></span>
+                        <small>Spark Cluster</small>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="status-indicator me-2" id="hadoop-status"></span>
+                        <small>Hadoop HDFS</small>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Contenido Principal -->
+            <main class="col-md-10 main-content p-4">
+                <!-- Panel Principal -->
+                <section id="overview-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Dashboard de Analytics</h2>
+                        <button class="btn btn-primary" onclick="refreshStats()">
+                            <i class="fas fa-refresh me-2"></i>Actualizar
+                        </button>
+                    </div>
+
+                    <!-- Estadísticas -->
+                    <div class="row mb-4" id="stats-cards">
+                        <div class="col-md-3">
+                            <div class="stat-card p-3">
+                                <h6 class="text-muted">Total Registros</h6>
+                                <h3 class="text-primary" id="total-rows">-</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card p-3">
+                                <h6 class="text-muted">Columnas</h6>
+                                <h3 class="text-info" id="total-columns">-</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card p-3">
+                                <h6 class="text-muted">Tamaño Dataset</h6>
+                                <h3 class="text-success" id="data-size">-</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card p-3">
+                                <h6 class="text-muted">Estado</h6>
+                                <h3 class="text-warning" id="data-status">Sin datos</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Información de Columnas -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="query-panel p-4">
+                                <h5>Esquema de Datos</h5>
+                                <div id="schema-info" class="table-responsive">
+                                    <p class="text-muted">Carga un dataset para ver el esquema</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="query-panel p-4">
+                                <h5>Datos de Muestra</h5>
+                                <div id="sample-preview" class="table-responsive">
+                                    <p class="text-muted">Carga un dataset para ver una muestra</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Cargar Datos -->
+                <section id="upload-section" style="display: none;">
+                    <h2>Cargar Dataset</h2>
+                    <div class="query-panel p-4">
+                        <form id="upload-form" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="file-input" class="form-label">Seleccionar archivo CSV</label>
+                                <input type="file" class="form-control" id="file-input" accept=".csv" required>
+                                <div class="form-text">Solo archivos CSV (máximo 100MB)</div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i>Cargar Dataset
+                            </button>
+                        </form>
+                        
+                        <div id="upload-progress" class="mt-3" style="display: none;">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     style="width: 100%"></div>
+                            </div>
+                            <small class="text-muted">Subiendo archivo y procesando...</small>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Consultas SQL -->
+                <section id="query-section" style="display: none;">
+                    <h2>Consultas SQL Personalizadas</h2>
+                    <div class="query-panel p-4">
+                        <div class="mb-3">
+                            <label for="sql-query" class="form-label">Consulta SQL</label>
+                            <textarea class="form-control" id="sql-query" rows="6" 
+                                      placeholder="SELECT * FROM data LIMIT 10"></textarea>
+                            <div class="form-text">
+                                Solo consultas SELECT permitidas. La tabla se llama 'data'.
+                            </div>
+                        </div>
+                        
+                        <!-- Consultas de ejemplo -->
+                        <div class="mb-3">
+                            <label class="form-label">Consultas de ejemplo:</label>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setExampleQuery('basic')">
+                                    Vista General
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setExampleQuery('count')">
+                                    Contar Registros
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setExampleQuery('group')">
+                                    Agrupar Datos
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="executeQuery()">
+                            <i class="fas fa-play me-2"></i>Ejecutar Consulta
+                        </button>
+                        
+                        <div class="mt-4">
+                            <h5>Resultados</h5>
+                            <div id="query-results" class="table-responsive">
+                                <p class="text-muted">Los resultados aparecerán aquí</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Agregaciones -->
+                <section id="aggregate-section" style="display: none;">
+                    <h2>Agregaciones</h2>
+                    <div class="query-panel p-4">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="group-by" class="form-label">Agrupar por</label>
+                                <select class="form-select" id="group-by">
+                                    <option value="">Seleccionar columna...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="agg-function" class="form-label">Función</label>
+                                <select class="form-select" id="agg-function">
+                                    <option value="count">Contar</option>
+                                    <option value="sum">Suma</option>
+                                    <option value="avg">Promedio</option>
+                                    <option value="max">Máximo</option>
+                                    <option value="min">Mínimo</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="agg-column" class="form-label">Columna (para sum/avg/max/min)</label>
+                                <select class="form-select" id="agg-column">
+                                    <option value="">Seleccionar columna...</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-primary mt-3" onclick="executeAggregation()">
+                            <i class="fas fa-calculator me-2"></i>Calcular
+                        </button>
+                        
+                        <div class="mt-4">
+                            <h5>Resultados</h5>
+                            <div id="aggregation-results" class="table-responsive">
+                                <p class="text-muted">Los resultados aparecerán aquí</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Vista de Datos -->
+                <section id="sample-section" style="display: none;">
+                    <h2>Vista de Datos</h2>
+                    <div class="query-panel p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <button class="btn btn-primary" onclick="loadSample()">
+                                    <i class="fas fa-eye me-2"></i>Ver Muestra
+                                </button>
+                                <button class="btn btn-outline-secondary ms-2" onclick="loadColumns()">
+                                    <i class="fas fa-columns me-2"></i>Info Columnas
+                                </button>
+                            </div>
+                            <div>
+                                <label for="sample-size" class="form-label me-2">Tamaño:</label>
+                                <select class="form-select form-select-sm" id="sample-size" style="width: auto; display: inline-block;">
+                                    <option value="50">50 filas</option>
+                                    <option value="100" selected>100 filas</option>
+                                    <option value="200">200 filas</option>
+                                    <option value="500">500 filas</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="sample-data" class="table-responsive">
+                            <p class="text-muted">Haz clic en "Ver Muestra" para cargar los datos</p>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables globales
+        let currentData = null;
+        let availableColumns = [];
+
+        // Consultas de ejemplo
+        const exampleQueries = {
+            basic: 'SELECT * FROM data LIMIT 10',
+            count: 'SELECT COUNT(*) as total_records FROM data',
+            group: 'SELECT category, COUNT(*) as count FROM data GROUP BY category LIMIT 10'
+        };
+
+        // Funciones de navegación
+        function showSection(event, sectionName) {
+            // Ocultar todas las secciones
+            const sections = ['overview', 'upload', 'query', 'aggregate', 'sample'];
+            sections.forEach(section => {
+                document.getElementById(section + '-section').style.display = 'none';
+            });
+            
+            // Mostrar la sección seleccionada
+            document.getElementById(sectionName + '-section').style.display = 'block';
+            
+            // Actualizar navegación activa
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // Establecer consulta de ejemplo
+        function setExampleQuery(type) {
+            if (exampleQueries[type]) {
+                document.getElementById('sql-query').value = exampleQueries[type];
+            }
+        }
+
+        // Verificar estado del sistema
+        async function checkSystemHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                // Actualizar indicadores de estado
+                document.getElementById('flask-status').className = 
+                    'status-indicator me-2 ' + (data.flask === 'ok' ? 'status-ok' : 'status-error');
+                document.getElementById('spark-status').className = 
+                    'status-indicator me-2 ' + (data.spark === 'ok' ? 'status-ok' : 'status-error');
+                document.getElementById('hadoop-status').className = 
+                    'status-indicator me-2 ' + (data.hadoop === 'ok' ? 'status-ok' : 'status-error');
+                
+            } catch (error) {
+                console.error('Error verificando estado:', error);
+                document.getElementById('flask-status').className = 'status-indicator me-2 status-error';
+                document.getElementById('spark-status').className = 'status-indicator me-2 status-error';
+                document.getElementById('hadoop-status').className = 'status-indicator me-2 status-error';
+            }
+        }
+
+        // Cargar estadísticas
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                if (response.ok) {
+                    const stats = await response.json();
+                    if (stats.basic_stats) {
+                        updateStatsDisplay(stats.basic_stats);
+                        updateColumnSelectors(stats.basic_stats.columns);
+                        availableColumns = stats.basic_stats.columns || [];
+                    }
+                } else {
+                    console.log('No hay datos cargados aún');
+                    resetStatsDisplay();
+                }
+            } catch (error) {
+                console.error('Error cargando estadísticas:', error);
+                resetStatsDisplay();
+            }
+        }
+
+        // Resetear visualización de estadísticas
+        function resetStatsDisplay() {
+            document.getElementById('total-rows').textContent = '-';
+            document.getElementById('total-columns').textContent = '-';
+            document.getElementById('data-size').textContent = '-';
+            document.getElementById('data-status').textContent = 'Sin datos';
+            document.getElementById('schema-info').innerHTML = '<p class="text-muted">Carga un dataset para ver el esquema</p>';
+            document.getElementById('sample-preview').innerHTML = '<p class="text-muted">Carga un dataset para ver una muestra</p>';
+        }
+
+        // Actualizar visualización de estadísticas
+        function updateStatsDisplay(stats) {
+            document.getElementById('total-rows').textContent = 
+                stats.total_rows ? stats.total_rows.toLocaleString() : '-';
+            document.getElementById('total-columns').textContent = 
+                stats.total_columns ? stats.total_columns : '-';
+            document.getElementById('data-size').textContent = 
+                stats.estimated_size_mb ? formatBytes(stats.estimated_size_mb * 1024 * 1024) : '-';
+            document.getElementById('data-status').textContent = 
+                stats.total_rows ? 'Cargado' : 'Sin datos';
+
+            // Mostrar esquema
+            if (stats.column_types) {
+                let schemaHtml = '<table class="table table-sm"><thead><tr><th>Columna</th><th>Tipo</th><th>Nulos</th></tr></thead><tbody>';
+                for (const [col, type] of Object.entries(stats.column_types)) {
+                    const nullCount = stats.null_counts ? stats.null_counts[col] || 0 : 0;
+                    schemaHtml += `<tr>
+                        <td>${col}</td>
+                        <td><span class="badge bg-secondary">${type}</span></td>
+                        <td>${nullCount}</td>
+                    </tr>`;
+                }
+                schemaHtml += '</tbody></table>';
+                document.getElementById('schema-info').innerHTML = schemaHtml;
+            }
+
+            // Mostrar muestra de datos
+            if (stats.sample_data && stats.sample_data.length > 0) {
+                let sampleHtml = '<table class="table table-sm table-striped"><thead><tr>';
+                const columns = Object.keys(stats.sample_data[0] || {});
+                columns.forEach(col => {
+                    sampleHtml += `<th>${col}</th>`;
+                });
+                sampleHtml += '</tr></thead><tbody>';
+                
+                stats.sample_data.slice(0, 5).forEach(row => {
+                    sampleHtml += '<tr>';
+                    columns.forEach(col => {
+                        const value = row[col];
+                        sampleHtml += `<td>${value !== null && value !== undefined ? value : ''}</td>`;
+                    });
+                    sampleHtml += '</tr>';
+                });
+                sampleHtml += '</tbody></table>';
+                document.getElementById('sample-preview').innerHTML = sampleHtml;
+            }
+        }
+
+        // Actualizar selectores de columnas
+        function updateColumnSelectors(columns) {
+            const groupBySelect = document.getElementById('group-by');
+            const aggColumnSelect = document.getElementById('agg-column');
+            
+            // Limpiar opciones existentes
+            groupBySelect.innerHTML = '<option value="">Seleccionar columna...</option>';
+            aggColumnSelect.innerHTML = '<option value="">Seleccionar columna...</option>';
+            
+            // Agregar columnas
+            if (columns) {
+                columns.forEach(col => {
+                    groupBySelect.innerHTML += `<option value="${col}">${col}</option>`;
+                    aggColumnSelect.innerHTML += `<option value="${col}">${col}</option>`;
+                });
+            }
+        }
+
+        // Formatear bytes
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Manejar carga de archivos
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Por favor selecciona un archivo');
+                return;
+            }
+            
+            if (file.size > 100 * 1024 * 1024) { // 100MB
+                alert('El archivo es demasiado grande. Máximo 100MB.');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Mostrar progreso
+            const uploadProgressElem = document.getElementById('upload-progress');
+            uploadProgressElem.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Archivo cargado exitosamente');
+                    await loadStats(); // Recargar estadísticas
+                    showSection({target: document.querySelector('[onclick*="overview"]')}, 'overview'); // Ir al panel principal
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error cargando archivo: ' + error.message);
+            } finally {
+                uploadProgressElem.style.display = 'none';
+            }
+        });
+
+        // Ejecutar consulta SQL
+        async function executeQuery() {
+            const query = document.getElementById('sql-query').value.trim();
+            
+            if (!query) {
+                alert('Por favor ingresa una consulta SQL');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    displayResults(result.result, 'query-results');
+                } else {
+                    document.getElementById('query-results').innerHTML = 
+                        `<div class="alert alert-danger">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('query-results').innerHTML = 
+                    `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Ejecutar agregación
+        async function executeAggregation() {
+            const groupBy = document.getElementById('group-by').value;
+            const aggFunction = document.getElementById('agg-function').value;
+            const aggColumn = document.getElementById('agg-column').value;
+            
+            if (!groupBy) {
+                alert('Por favor selecciona una columna para agrupar');
+                return;
+            }
+            
+            if (aggFunction !== 'count' && !aggColumn) {
+                alert('Por favor selecciona una columna para la función de agregación');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/aggregate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        group_by: groupBy,
+                        agg_function: aggFunction,
+                        agg_column: aggColumn
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    displayResults(result.result, 'aggregation-results');
+                } else {
+                    document.getElementById('aggregation-results').innerHTML = 
+                        `<div class="alert alert-danger">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('aggregation-results').innerHTML = 
+                    `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Cargar muestra de datos
+        async function loadSample() {
+            const sampleSize = document.getElementById('sample-size').value;
+            
+            try {
+                const response = await fetch(`/api/sample?size=${sampleSize}`);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    displayResults(result.sample, 'sample-data');
+                } else {
+                    document.getElementById('sample-data').innerHTML = 
+                        `<div class="alert alert-danger">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('sample-data').innerHTML = 
+                    `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Cargar información de columnas
+        async function loadColumns() {
+            try {
+                const response = await fetch('/api/columns');
+                const result = await response.json();
+                
+                if (response.ok) {
+                    displayColumnInfo(result.columns, 'sample-data');
+                } else {
+                    document.getElementById('sample-data').innerHTML = 
+                        `<div class="alert alert-danger">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('sample-data').innerHTML = 
+                    `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Mostrar información de columnas
+        function displayColumnInfo(columns, containerId) {
+            const container = document.getElementById(containerId);
+            
+            if (!columns || columns.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No hay información de columnas</div>';
+                return;
+            }
+            
+            let html = '<table class="table table-striped"><thead class="table-dark"><tr>';
+            html += '<th>Columna</th><th>Tipo</th><th>Numérica</th><th>Valores Nulos</th><th>Estadísticas</th>';
+            html += '</tr></thead><tbody>';
+            
+            columns.forEach(col => {
+                html += '<tr>';
+                html += `<td><strong>${col.name}</strong></td>`;
+                html += `<td><span class="badge bg-secondary">${col.type}</span></td>`;
+                html += `<td>${col.is_numeric ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-light text-dark">No</span>'}</td>`;
+                html += `<td>${col.null_count || 0}</td>`;
+                
+                // Mostrar estadísticas si están disponibles
+                let statsHtml = '-';
+                if (col.stats && Object.keys(col.stats).length > 0) {
+                    statsHtml = '<small>';
+                    if (col.stats.mean !== undefined) statsHtml += `Media: ${col.stats.mean.toFixed(2)}<br>`;
+                    if (col.stats.min !== undefined) statsHtml += `Min: ${col.stats.min}<br>`;
+                    if (col.stats.max !== undefined) statsHtml += `Max: ${col.stats.max}`;
+                    statsHtml += '</small>';
+                }
+                html += `<td>${statsHtml}</td>`;
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // Mostrar resultados en tabla
+        function displayResults(data, containerId) {
+            const container = document.getElementById(containerId);
+            
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No hay resultados</div>';
+                return;
+            }
+            
+            const columns = Object.keys(data[0]);
+            let html = '<table class="table table-striped table-hover"><thead class="table-dark"><tr>';
+            
+            columns.forEach(col => {
+                html += `<th>${col}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            data.forEach(row => {
+                html += '<tr>';
+                columns.forEach(col => {
+                    const value = row[col];
+                    html += `<td>${value !== null && value !== undefined ? value : ''}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            html += `<div class="mt-2"><small class="text-muted">Mostrando ${data.length} resultados</small></div>`;
+            container.innerHTML = html;
+        }
+
+        // Refrescar estadísticas
+        async function refreshStats() {
+            await loadStats();
+        }
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSystemHealth();
+            loadStats();
+            
+            // Verificar estado cada 30 segundos
+            setInterval(checkSystemHealth, 30000);
+        });
+    </script>
+</body>
+</html>

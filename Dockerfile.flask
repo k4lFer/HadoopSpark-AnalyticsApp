@@ -1,0 +1,47 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Instalar Java 8 (más compatible y estable)
+RUN apt-get update && \
+    apt-get install -y default-jre default-jdk wget curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Configurar variables de entorno
+ENV JAVA_HOME=/usr/lib/jvm/default-java
+ENV SPARK_VERSION=3.1.1
+ENV HADOOP_VERSION=3.2
+ENV SPARK_HOME=/opt/spark
+ENV PATH=$PATH:$SPARK_HOME/bin:$SPARK_HOME/sbin
+ENV PYSPARK_PYTHON=/usr/local/bin/python
+ENV PYSPARK_DRIVER_PYTHON=/usr/local/bin/python
+ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9-src.zip:$PYTHONPATH
+
+# Descargar e instalar Spark
+RUN wget -q "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz" && \
+    tar xzf "spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz" && \
+    mv "spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}" /opt/spark && \
+    rm "spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz"
+
+# Copiar requirements
+COPY requirements.txt .
+
+# Instalar dependencias Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Crear directorios necesarios
+RUN mkdir -p /app/data /app/src /app/templates /app/static
+
+# Copiar todo el código de la aplicación
+COPY requirements.txt .
+COPY src/ ./src/
+COPY templates/ ./templates/
+COPY *.py ./
+
+# Asegurar que los directorios existen
+RUN mkdir -p /app/src /app/templates
+
+EXPOSE 5000
+
+CMD ["python", "app.py"]
