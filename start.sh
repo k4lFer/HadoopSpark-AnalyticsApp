@@ -14,8 +14,13 @@ fi
 
 # Verificar si Docker está corriendo
 if ! docker info > /dev/null 2>&1; then
-    echo "❌ Error: Docker no está corriendo"
-    echo "Por favor inicia Docker Desktop y vuelve a ejecutar este script"
+    echo "❌ Error: No se puede conectar al demonio de Docker."
+    echo "   Asegúrate de que Docker esté corriendo."
+    echo "   Si estás en Linux, puede que necesites ejecutar este script con 'sudo' o"
+    echo "   agregar tu usuario al grupo 'docker' con el siguiente comando:"
+    echo "   sudo usermod -aG docker \$USER"
+    echo ""
+    echo "   (Recuerda cerrar sesión y volver a iniciarla para que el cambio surta efecto)."
     exit 1
 fi
 
