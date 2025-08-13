@@ -1,7 +1,6 @@
 Flask==2.3.3
 Flask-CORS==4.0.0
 pyspark==3.1.1
-hdfs3==0.3.1
 hdfs==2.7.0
 pandas==2.0.3
 numpy==1.23.5

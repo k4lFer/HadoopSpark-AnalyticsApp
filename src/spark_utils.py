@@ -1,10 +1,11 @@
 """
-Utilidades para manejo de Spark en el sistema de Analytics - VERSIÓN CORREGIDA
+Utilidades para manejo de Spark - VERSIÓN SIMPLIFICADA QUE USA CONFIGURACIÓN EXTERNA
 """
 import logging
 import time
 import json
 import math
+import os
 from typing import Dict, List, Tuple, Optional, Any
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, lit, count, sum as spark_sum, avg, max as spark_max, min as spark_min, isnan, isnull, when
@@ -14,58 +15,54 @@ from pyspark.sql.types import StructType, StructField, StringType, IntegerType, 
 logger = logging.getLogger(__name__)
 
 class SparkManager:
-    """Manager para la sesión de Spark"""
+    """Manager para la sesión de Spark - USA CONFIGURACIÓN EXTERNA"""
     
     def __init__(self, app_name: str = "AnalyticsApp", master_url: str = "local[*]"):
         self.app_name = app_name
         self.master_url = master_url
         self.spark = None
+        self.spark_conf_dir = os.getenv('SPARK_CONF_DIR', '/app/spark-conf')
         self.initialize_spark()
     
     def initialize_spark(self):
-        """Inicializar sesión de Spark con configuraciones optimizadas"""
+        """Inicializar sesión de Spark usando archivo de configuración"""
         try:
             logger.info(f"Inicializando Spark con master: {self.master_url}")
+            logger.info(f"Usando configuración de: {self.spark_conf_dir}")
             
-            # Configuraciones base
+            # Configuración base - MÍNIMA
             builder = SparkSession.builder \
                 .appName(self.app_name) \
                 .master(self.master_url)
             
-            # Configuraciones optimizadas para evitar errores de serialización
-            spark_configs = {
-                # Serialización - CONFIGURACIÓN MEJORADA
-                "spark.serializer": "org.apache.spark.serializer.JavaSerializer",  # Cambio de Kryo a Java
-                "spark.sql.execution.arrow.pyspark.enabled": "false",
-                "spark.sql.execution.arrow.pyspark.fallback.enabled": "false",
+            # Verificar si existe archivo de configuración
+            spark_defaults_path = os.path.join(self.spark_conf_dir, 'spark-defaults.conf')
+            if os.path.exists(spark_defaults_path):
+                logger.info(f"✅ Encontrado archivo de configuración: {spark_defaults_path}")
                 
-                # Memoria
-                "spark.driver.memory": "1g",
-                "spark.executor.memory": "1g",
-                "spark.driver.maxResultSize": "512m",
+                # Leer configuración desde archivo
+                config_overrides = self._load_spark_config(spark_defaults_path)
                 
-                # Paralelismo reducido para evitar problemas
-                "spark.sql.shuffle.partitions": "2",  # Reducido de 4 a 2
-                "spark.default.parallelism": "2",     # Reducido de 4 a 2
+                # Aplicar configuraciones del archivo
+                for key, value in config_overrides.items():
+                    builder = builder.config(key, value)
+                    
+                logger.info(f"✅ Aplicadas {len(config_overrides)} configuraciones desde archivo")
+            else:
+                logger.warning(f"⚠️ Archivo de configuración no encontrado: {spark_defaults_path}")
+                logger.info("Usando configuración por defecto mínima")
                 
-                # SQL adaptativo DESHABILITADO para mayor estabilidad
-                "spark.sql.adaptive.enabled": "false",
-                "spark.sql.adaptive.coalescePartitions.enabled": "false",
-                "spark.sql.adaptive.skewJoin.enabled": "false",
+                # Solo configuraciones esenciales si no hay archivo
+                essential_configs = {
+                    "spark.serializer": "org.apache.spark.serializer.JavaSerializer",
+                    "spark.sql.execution.arrow.pyspark.enabled": "false",
+                    "spark.driver.memory": "1g",
+                    "spark.executor.memory": "1g",
+                    "spark.sql.shuffle.partitions": "4"
+                }
                 
-                # Timeouts aumentados
-                "spark.network.timeout": "600s",     # Aumentado de 300s
-                "spark.executor.heartbeatInterval": "60s",  # Aumentado de 30s
-                
-                # Configuraciones adicionales para estabilidad
-                "spark.sql.execution.sortBeforeRepartition": "false",
-                "spark.sql.execution.useColumnarReaderForSchemaDiscovery": "false",
-                "spark.serializer.objectStreamReset": "100"
-            }
-            
-            # Aplicar configuraciones
-            for key, value in spark_configs.items():
-                builder = builder.config(key, value)
+                for key, value in essential_configs.items():
+                    builder = builder.config(key, value)
             
             # Crear sesión
             self.spark = builder.getOrCreate()
@@ -73,9 +70,10 @@ class SparkManager:
             # Configurar nivel de logging
             self.spark.sparkContext.setLogLevel("WARN")
             
-            logger.info("✅ Spark inicializado correctamente con configuración estable")
-            logger.info(f"Spark UI disponible en: {self.spark.sparkContext.uiWebUrl}")
+            # Mostrar información del cluster
+            self._log_cluster_info()
             
+            logger.info("✅ Spark inicializado correctamente")
             return True
             
         except Exception as e:
@@ -83,19 +81,85 @@ class SparkManager:
             self.spark = None
             return False
     
+    def _load_spark_config(self, config_file: str) -> Dict[str, str]:
+        """Cargar configuración desde archivo spark-defaults.conf"""
+        config = {}
+        try:
+            with open(config_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    # Ignorar comentarios y líneas vacías
+                    if line and not line.startswith('#'):
+                        parts = line.split(None, 1)  # Split en primer espacio
+                        if len(parts) == 2:
+                            key, value = parts
+                            config[key] = value
+                            
+            logger.info(f"✅ Cargadas {len(config)} configuraciones desde {config_file}")
+            return config
+            
+        except Exception as e:
+            logger.error(f"❌ Error leyendo configuración de {config_file}: {e}")
+            return {}
+    
+    def _log_cluster_info(self):
+        """Mostrar información del cluster Spark"""
+        try:
+            sc = self.spark.sparkContext
+            logger.info(f"🔧 Spark UI disponible en: {sc.uiWebUrl}")
+            logger.info(f"🔧 Aplicación ID: {sc.applicationId}")
+            logger.info(f"🔧 Master URL: {sc.master}")
+            logger.info(f"🔧 Paralelismo por defecto: {sc.defaultParallelism}")
+            
+            # Información de executors (si está disponible)
+            try:
+                executor_infos = sc.statusTracker().getExecutorInfos()
+                logger.info(f"🔧 Número de executors: {len(executor_infos)}")
+                for executor in executor_infos:
+                    logger.info(f"  - Executor {executor.executorId}: {executor.maxTasks} tasks máximas")
+            except Exception as e:
+                logger.debug(f"No se pudo obtener info de executors: {e}")
+                
+        except Exception as e:
+            logger.warning(f"Error obteniendo información del cluster: {e}")
+    
     def get_session(self) -> Optional[SparkSession]:
         """Obtener la sesión de Spark"""
         return self.spark
+    
+    def get_cluster_resources(self) -> Dict[str, Any]:
+        """Obtener información de recursos del cluster"""
+        if not self.spark:
+            return {}
+        
+        try:
+            sc = self.spark.sparkContext
+            executor_infos = sc.statusTracker().getExecutorInfos()
+            
+            total_cores = sum(executor.maxTasks for executor in executor_infos)
+            total_executors = len(executor_infos)
+            
+            return {
+                'total_executors': total_executors,
+                'total_cores': total_cores,
+                'default_parallelism': sc.defaultParallelism,
+                'master_url': sc.master,
+                'app_id': sc.applicationId,
+                'spark_ui_url': sc.uiWebUrl
+            }
+        except Exception as e:
+            logger.error(f"Error obteniendo recursos del cluster: {e}")
+            return {}
     
     def stop(self):
         """Detener la sesión de Spark"""
         if self.spark:
             self.spark.stop()
-            logger.info("Spark session detenida")
+            logger.info("🛑 Spark session detenida")
 
 
 class DataAnalyzer:
-    """Analizador de datos usando Spark"""
+    """Analizador de datos usando Spark - SIN CAMBIOS EN LA LÓGICA"""
     
     def __init__(self, spark_session: SparkSession):
         self.spark = spark_session
@@ -107,7 +171,7 @@ class DataAnalyzer:
         try:
             logger.info(f"Analizando archivo CSV: {file_path}")
             
-            # Leer CSV con configuración más robusta
+            # Leer CSV con configuración robusta
             df = self.spark.read \
                 .option("header", "true") \
                 .option("inferSchema", "true") \
@@ -170,7 +234,7 @@ class DataAnalyzer:
             # Tipos de datos
             column_types = dict(df.dtypes)
             
-            # Análisis de valores nulos (simplificado para evitar errores)
+            # Análisis de valores nulos (simplificado)
             null_counts = {}
             for col_name in columns:
                 try:
@@ -180,14 +244,13 @@ class DataAnalyzer:
                     logger.warning(f"Error contando nulos en {col_name}: {e}")
                     null_counts[col_name] = 0
             
-            # Estadísticas por columna (solo para columnas numéricas, simplificado)
+            # Estadísticas por columna (solo numéricas, simplificado)
             column_stats = {}
             numeric_columns = [col_name for col_name, col_type in df.dtypes 
                              if col_type in ['int', 'bigint', 'double', 'float']]
             
             for col_name in numeric_columns:
                 try:
-                    # Usar agregaciones simples en lugar de describe()
                     stats_df = df.select(
                         count(col(col_name)).alias('count'),
                         avg(col(col_name)).alias('mean'),
@@ -205,7 +268,7 @@ class DataAnalyzer:
                     logger.warning(f"Error calculando stats para {col_name}: {e}")
                     column_stats[col_name] = {}
             
-            # Muestra de datos (con limpieza adicional)
+            # Muestra de datos
             sample_data = self._get_clean_sample(df, 5)
             
             # Estimar tamaño en memoria
@@ -242,16 +305,13 @@ class DataAnalyzer:
     def _get_clean_sample(self, df: DataFrame, limit: int = 5) -> List[Dict]:
         """Obtener muestra limpia de datos"""
         try:
-            # Obtener muestra sin usar toPandas para evitar errores de serialización
             sample_rows = df.limit(limit).collect()
             
-            # Convertir a diccionarios limpiando valores problemáticos
             clean_sample = []
             for row in sample_rows:
                 row_dict = row.asDict()
                 clean_row = {}
                 for key, value in row_dict.items():
-                    # Limpiar valores problemáticos
                     if value is None:
                         clean_row[key] = None
                     elif isinstance(value, float):
@@ -272,7 +332,6 @@ class DataAnalyzer:
     def _estimate_memory_usage(self, rows: int, columns: int) -> float:
         """Estimar uso de memoria en MB"""
         try:
-            # Estimación aproximada: 8 bytes por celda promedio
             bytes_per_cell = 8
             total_bytes = rows * columns * bytes_per_cell
             mb_size = total_bytes / (1024 * 1024)
@@ -283,7 +342,7 @@ class DataAnalyzer:
 
 
 class QueryEngine:
-    """Motor de consultas SQL usando Spark - VERSIÓN MEJORADA"""
+    """Motor de consultas SQL usando Spark - SIN CAMBIOS EN LA LÓGICA"""
     
     def __init__(self, spark_session: SparkSession):
         self.spark = spark_session
@@ -292,7 +351,6 @@ class QueryEngine:
     def register_dataframe(self, df: DataFrame, table_name: str):
         """Registrar DataFrame como tabla temporal"""
         try:
-            # Limpiar DataFrame antes de registrar
             clean_df = self._prepare_dataframe_for_sql(df)
             clean_df.createOrReplaceTempView(table_name)
             self.registered_tables[table_name] = clean_df
@@ -303,7 +361,6 @@ class QueryEngine:
     def _prepare_dataframe_for_sql(self, df: DataFrame) -> DataFrame:
         """Preparar DataFrame para consultas SQL"""
         try:
-            # Limpiar valores problemáticos antes de registrar
             for col_name, col_type in df.dtypes:
                 if col_type in ['double', 'float']:
                     df = df.withColumn(
@@ -320,22 +377,17 @@ class QueryEngine:
             return df
     
     def execute_sql(self, query: str, limit: int = 1000) -> Tuple[Optional[List[Dict]], Optional[str]]:
-        """
-        Ejecutar consulta SQL y retornar resultados - VERSIÓN CORREGIDA
-        """
+        """Ejecutar consulta SQL y retornar resultados"""
         try:
             logger.info(f"Ejecutando consulta SQL (limit: {limit})")
             
-            # Limpiar query
             query = query.strip()
             if query.endswith(';'):
-                query = query[:-1]  # Remover punto y coma final
+                query = query[:-1]
             
             query_lower = query.lower()
             
-            # NUEVA LÓGICA: Solo agregar LIMIT si la consulta no lo tiene
             if 'limit' not in query_lower:
-                # Para consultas con GROUP BY, agregar límite más conservador
                 if 'group by' in query_lower:
                     query += f" LIMIT {min(limit, 100)}"
                 else:
@@ -343,11 +395,9 @@ class QueryEngine:
             
             logger.info(f"Query final: {query}")
             
-            # Ejecutar consulta
             start_time = time.time()
             result_df = self.spark.sql(query)
             
-            # Convertir resultados de forma segura
             results = self._safe_collect_results(result_df)
             
             execution_time = time.time() - start_time
@@ -363,28 +413,25 @@ class QueryEngine:
     def _safe_collect_results(self, df: DataFrame) -> List[Dict]:
         """Recolectar resultados de forma segura"""
         try:
-            # Usar collect() en lugar de toPandas() para mayor estabilidad
             rows = df.collect()
             
-            # Convertir a lista de diccionarios con limpieza
             results = []
             for row in rows:
                 row_dict = row.asDict()
                 clean_row = {}
                 
                 for key, value in row_dict.items():
-                    # Limpiar valores problemáticos para JSON
                     if value is None:
                         clean_row[key] = None
                     elif isinstance(value, float):
                         if math.isnan(value):
-                            clean_row[key] = None  # Convertir NaN a null
+                            clean_row[key] = None
                         elif math.isinf(value):
-                            clean_row[key] = None  # Convertir inf a null
+                            clean_row[key] = None
                         else:
-                            clean_row[key] = round(value, 6)  # Redondear para evitar problemas de precisión
+                            clean_row[key] = round(value, 6)
                     elif isinstance(value, int) and abs(value) > 2**53:
-                        clean_row[key] = str(value)  # Convertir enteros muy grandes a string
+                        clean_row[key] = str(value)
                     else:
                         clean_row[key] = value
                 
@@ -412,7 +459,7 @@ class QueryEngine:
         return None
 
 
-# Consultas de ejemplo predefinidas
+# Consultas de ejemplo predefinidas - SIN CAMBIOS
 SAMPLE_QUERIES = {
     'basic_count': {
         'name': 'Conteo Total',
@@ -431,7 +478,7 @@ SAMPLE_QUERIES = {
     }
 }
 
-# Funciones de utilidad
+# Funciones de utilidad - SIN CAMBIOS
 def create_spark_manager(app_name: str = "AnalyticsApp", master_url: str = "local[*]") -> SparkManager:
     """Factory function para crear SparkManager"""
     return SparkManager(app_name, master_url)
