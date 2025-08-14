@@ -1,15 +1,15 @@
-FROM python:3.9-slim
+FROM python:3.9-slim-bullseye
 
 WORKDIR /app
 
-# Instalar Java 8 (más compatible y estable)
+# Instalar Java 8 (disponible en Debian Bullseye)
 RUN apt-get update && \
-    apt-get install -y default-jre default-jdk wget curl && \
+    apt-get install -y openjdk-11-jre-headless openjdk-11-jdk-headless wget curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Configurar variables de entorno
-ENV JAVA_HOME=/usr/lib/jvm/default-java
+# Configurar variables de entorno PARA JAVA 11
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ENV SPARK_VERSION=3.1.1
 ENV HADOOP_VERSION=3.2
 ENV SPARK_HOME=/opt/spark

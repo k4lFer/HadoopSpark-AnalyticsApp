@@ -1,5 +1,5 @@
 services:
-  # Hadoop NameNode
+  # Hadoop NameNode - JAVA 8
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: namenode
@@ -16,7 +16,7 @@ services:
     networks:
       - hadoop-spark
 
-  # Hadoop DataNode
+  # Hadoop DataNode - JAVA 8
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
     container_name: datanode
@@ -42,7 +42,7 @@ services:
       - SPARK_CONF_DIR=/conf
       - SPARK_LOCAL_DIRS=/tmp
     volumes:
-      - ./spark-conf:/conf:ro  # Solo lectura
+      - ./spark-conf:/conf:ro
     deploy:
       resources:
         limits:
@@ -51,7 +51,7 @@ services:
     networks:
       - hadoop-spark
 
-  # Spark Worker 1 - LIMITADO A 2 CORES Y 1GB
+  # Spark Worker 1 - 2 CORES, 1GB
   spark-worker-1:
     image: bde2020/spark-worker:3.1.1-hadoop3.2
     container_name: spark-worker-1
@@ -63,33 +63,6 @@ services:
       - "SPARK_MASTER=spark://spark-master:7077"
       - SPARK_CONF_DIR=/conf
       - SPARK_LOCAL_DIRS=/tmp
-      # LÍMITES ESPECÍFICOS PARA WORKER 1
-      - SPARK_WORKER_CORES=2
-      - SPARK_WORKER_MEMORY=1g
-      - SPARK_WORKER_INSTANCES=1
-    volumes:
-      - ./spark-conf:/conf:ro
-    deploy:
-      resources:
-        limits:
-          memory: 1.2G  # Un poco más para overhead
-          cpus: '2.0'
-    networks:
-      - hadoop-spark
-
-  # Spark Worker 2 - NUEVO WORKER CON MISMOS LÍMITES
-  spark-worker-2:
-    image: bde2020/spark-worker:3.1.1-hadoop3.2
-    container_name: spark-worker-2
-    depends_on:
-      - spark-master
-    ports:
-      - "8082:8082"  # Puerto diferente
-    environment:
-      - "SPARK_MASTER=spark://spark-master:7077"
-      - SPARK_CONF_DIR=/conf
-      - SPARK_LOCAL_DIRS=/tmp
-      # LÍMITES ESPECÍFICOS PARA WORKER 2
       - SPARK_WORKER_CORES=2
       - SPARK_WORKER_MEMORY=1g
       - SPARK_WORKER_INSTANCES=1
@@ -103,7 +76,32 @@ services:
     networks:
       - hadoop-spark
 
-  # Flask API - CONFIGURACIÓN MEJORADA
+  # Spark Worker 2 - 2 CORES, 1GB
+  spark-worker-2:
+    image: bde2020/spark-worker:3.1.1-hadoop3.2
+    container_name: spark-worker-2
+    depends_on:
+      - spark-master
+    ports:
+      - "8082:8081"
+    environment:
+      - "SPARK_MASTER=spark://spark-master:7077"
+      - SPARK_CONF_DIR=/conf
+      - SPARK_LOCAL_DIRS=/tmp
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=1g
+      - SPARK_WORKER_INSTANCES=1
+    volumes:
+      - ./spark-conf:/conf:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1.2G
+          cpus: '2.0'
+    networks:
+      - hadoop-spark
+
+  # Flask API - CON JAVA 11 Y OPCIONES MÍNIMAS
   flask-api:
     build: 
       context: .
@@ -114,7 +112,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./src:/app/src
-      - ./spark-conf:/app/spark-conf:ro  # Acceso a config Spark
+      - ./spark-conf:/app/spark-conf:ro
     depends_on:
       - namenode
       - spark-master
@@ -125,12 +123,11 @@ services:
       - HADOOP_NAMENODE_WEB_URL=http://namenode:9870
       - HDFS_USER=hdfs
       - SPARK_MASTER_URL=spark://spark-master:7077
-      # CONFIGURACIÓN SPARK DESDE ARCHIVO
       - SPARK_CONF_DIR=/app/spark-conf
-      # Variables JVM optimizadas
-      - JAVA_TOOL_OPTIONS=--add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
       - PYSPARK_PYTHON=/usr/local/bin/python
       - PYSPARK_DRIVER_PYTHON=/usr/local/bin/python
+      # Opciones Java 11 MÍNIMAS solo para lo esencial
+      - JAVA_TOOL_OPTIONS=--add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
     deploy:
       resources:
         limits:
@@ -139,30 +136,25 @@ services:
     networks:
       - hadoop-spark
 
-  # PostgreSQL para metadatos
-  #postgres:
-  #  image: postgres:13
-  #  container_name: postgres-db
-  #  environment:
-  #    POSTGRES_DB: analytics_db
-  #    POSTGRES_USER: analytics_user
-  #    POSTGRES_PASSWORD: analytics_pass
-  #  ports:
-  #    - "5432:5432"
-  #  volumes:
-  #    - postgres_data:/var/lib/postgresql/data
-  #  deploy:
-  #    resources:
-  #      limits:
-  #        memory: 512M
-  #        cpus: '1.0'
-  #  networks:
-  #    - hadoop-spark
+  # PostgreSQL comentado
+  # postgres:
+  #   image: postgres:13
+  #   container_name: postgres-db
+  #   environment:
+  #     POSTGRES_DB: analytics_db
+  #     POSTGRES_USER: analytics_user
+  #     POSTGRES_PASSWORD: analytics_pass
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - hadoop-spark
 
 volumes:
   hadoop_namenode:
   hadoop_datanode:
-  postgres_data:
+  # postgres_data:
 
 networks:
   hadoop-spark:
