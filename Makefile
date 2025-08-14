@@ -166,3 +166,14 @@ debug-spark-config: ## Mostrar configuración actual de Spark
 debug-resources: ## Mostrar uso de recursos
 	@echo "📊 Uso de recursos por contenedor:"
 	@docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+
+purge: ## Eliminar absolutamente todo de Docker (contenedores, imágenes, volúmenes, redes, builds)
+	@echo "🔥 Eliminando TODO de Docker..."
+	@docker stop $$(docker ps -aq) 2>/dev/null || true
+	@docker rm -f $$(docker ps -aq) 2>/dev/null || true
+	@docker volume rm $$(docker volume ls -q) 2>/dev/null || true
+	@docker network rm $$(docker network ls -q) 2>/dev/null || true
+	@docker image rm -f $$(docker images -aq) 2>/dev/null || true
+	@docker builder prune -a --force
+	@docker system prune -a --volumes -f
+	@echo "✅ Limpieza total completada"
