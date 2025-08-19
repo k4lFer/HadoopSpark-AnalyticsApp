@@ -178,7 +178,7 @@
                             <div class="mb-3">
                                 <label for="file-input" class="form-label">Seleccionar archivo CSV</label>
                                 <input type="file" class="form-control" id="file-input" accept=".csv" required>
-                                <div class="form-text">Solo archivos CSV (máximo 100MB)</div>
+                                <div class="form-text">Solo archivos CSV (máximo 5GB)</div>
                             </div>
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-upload me-2"></i>Cargar Dataset
@@ -491,8 +491,8 @@
                 return;
             }
             
-            if (file.size > 100 * 1024 * 1024) { // 100MB
-                alert('El archivo es demasiado grande. Máximo 100MB.');
+            if (file.size > 5 * 1024 * 1024 * 1024) { // 15GB
+                alert('El archivo es demasiado grande. Máximo 5GB.');
                 return;
             }
             

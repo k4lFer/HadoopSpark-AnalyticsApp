@@ -28,8 +28,8 @@ Sistema completo de analytics con Hadoop, Spark y Flask API para análisis de da
 ### Instalación
 ```bash
 # Clonar repositorio
-git clone <tu-repo>
-cd analytics-project
+git clone https://github.com/tu-usuario/HadoopSpark-AnalyticsApp.git
+cd HadoopSpark-AnalyticsApp
 
 # Crear estructura de directorios y generar datos de prueba
 make install

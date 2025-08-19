@@ -2,7 +2,7 @@ FROM python:3.9-slim-bullseye
 
 WORKDIR /app
 
-# Instalar Java 8 (disponible en Debian Bullseye)
+# Instalar Java 11 (disponible en Debian Bullseye)
 RUN apt-get update && \
     apt-get install -y openjdk-11-jre-headless openjdk-11-jdk-headless wget curl && \
     apt-get clean && \
