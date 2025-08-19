@@ -24,8 +24,8 @@ def validate_file_upload(request: Request) -> Optional[Dict[str, Any]]:
     
     # Verificar tamaño (100MB máximo)
     if hasattr(file, 'content_length') and file.content_length:
-        if file.content_length > 5 * 1024 * 1024 * 1024:
-            return {'error': 'El archivo es demasiado grande. Máximo 5GB.'}
+        if file.content_length > 100 * 1024 * 1024:
+            return {'error': 'El archivo es demasiado grande. Máximo 100MB.'}
     
     # Todo válido
     return None

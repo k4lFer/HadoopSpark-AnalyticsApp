@@ -51,7 +51,7 @@ def handle_errors(app: Flask):
         """Manejo de archivo muy grande"""
         return safe_json_response({
             'error': 'Archivo demasiado grande',
-            'message': 'El archivo excede el tamaño máximo permitido (5GB)'
+            'message': 'El archivo excede el tamaño máximo permitido (100MB)'
         }, 413)
     
     @app.errorhandler(500)

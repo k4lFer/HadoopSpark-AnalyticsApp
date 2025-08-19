@@ -1,6 +1,6 @@
 # Analytics System - Hadoop + Spark + Flask
 
-Sistema completo de analytics con Hadoop, Spark y Flask API para análisis de datos a gran escala con soporte para archivos CSV de hasta 5GB.
+Sistema completo de analytics con Hadoop, Spark y Flask API para análisis de datos a gran escala con soporte para archivos CSV de hasta 100MB de momento.
 
 ## 🏗️ Arquitectura Actual
 
@@ -97,7 +97,7 @@ analytics-project/
 
 ### 📤 Gestión de Datos
 ```bash
-# Subir archivo CSV (hasta 5GB)
+# Subir archivo CSV (hasta 100MB)
 POST /api/upload
 Content-Type: multipart/form-data
 Body: file=archivo.csv
@@ -226,13 +226,13 @@ make shell-spark      # ⚡ Shell del master Spark
 - **Memoria**: 1GB por executor + 2GB driver
 - **Particiones**: 4 particiones por defecto
 - **Serialización**: JavaSerializer (estabilidad)
-- **Límites**: Archivos hasta 5GB
+- **Límites**: Archivos hasta 100MB
 
 ## 🔒 Seguridad y Validaciones
 
 ### Validaciones de Entrada
 - ✅ Solo archivos CSV (extensión verificada)
-- ✅ Tamaño máximo 5GB por archivo
+- ✅ Tamaño máximo 100MB por archivo
 - ✅ Consultas SQL solo de lectura (SELECT/WITH)
 - ✅ Validación de nombres de columnas
 - ✅ Parámetros de consulta sanitizados

@@ -22,7 +22,7 @@ class Config:
     
     # Archivos
     UPLOAD_FOLDER = '/app/data'
-    MAX_CONTENT_LENGTH = 5 * 1024 * 1024 * 1024  # 5GB en bytes
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 1GB en bytes
     ALLOWED_EXTENSIONS = {'csv'}
     
     # Límites de consultas

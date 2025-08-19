@@ -136,17 +136,23 @@ def _build_aggregation_query(params: dict) -> str:
     agg_col = params['agg_column']
     limit = params['limit']
     
+    # Escapar nombres de columnas con espacios
+    safe_group_by = f'`{group_by}`' if ' ' in group_by else group_by
+    safe_agg_col = f'`{agg_col}`' if agg_col and ' ' in agg_col else agg_col
+    
     if agg_func == 'count':
-        query = f"SELECT {group_by}, COUNT(*) as count FROM data GROUP BY {group_by} ORDER BY count DESC LIMIT {limit}"
+        query = f"SELECT {safe_group_by}, COUNT(*) as count FROM data GROUP BY {safe_group_by} ORDER BY count DESC LIMIT {limit}"
     elif agg_col:
+        # Sanitizar alias para evitar problemas con espacios
+        safe_alias = agg_col.replace(' ', '_')
         if agg_func == 'sum':
-            query = f"SELECT {group_by}, SUM({agg_col}) as sum_{agg_col} FROM data GROUP BY {group_by} ORDER BY sum_{agg_col} DESC LIMIT {limit}"
+            query = f"SELECT {safe_group_by}, SUM({safe_agg_col}) as sum_{safe_alias} FROM data GROUP BY {safe_group_by} ORDER BY sum_{safe_alias} DESC LIMIT {limit}"
         elif agg_func == 'avg':
-            query = f"SELECT {group_by}, AVG({agg_col}) as avg_{agg_col} FROM data GROUP BY {group_by} ORDER BY avg_{agg_col} DESC LIMIT {limit}"
+            query = f"SELECT {safe_group_by}, AVG({safe_agg_col}) as avg_{safe_alias} FROM data GROUP BY {safe_group_by} ORDER BY avg_{safe_alias} DESC LIMIT {limit}"
         elif agg_func == 'max':
-            query = f"SELECT {group_by}, MAX({agg_col}) as max_{agg_col} FROM data GROUP BY {group_by} ORDER BY max_{agg_col} DESC LIMIT {limit}"
+            query = f"SELECT {safe_group_by}, MAX({safe_agg_col}) as max_{safe_alias} FROM data GROUP BY {safe_group_by} ORDER BY max_{safe_alias} DESC LIMIT {limit}"
         elif agg_func == 'min':
-            query = f"SELECT {group_by}, MIN({agg_col}) as min_{agg_col} FROM data GROUP BY {group_by} ORDER BY min_{agg_col} ASC LIMIT {limit}"
+            query = f"SELECT {safe_group_by}, MIN({safe_agg_col}) as min_{safe_alias} FROM data GROUP BY {safe_group_by} ORDER BY min_{safe_alias} ASC LIMIT {limit}"
         else:
             return None
     else:
@@ -172,9 +178,11 @@ def _generate_example_queries(columns: list) -> dict:
     # Agregar ejemplos dinámicos basados en columnas
     if len(columns) > 0:
         first_col = columns[0]
+        # Escapar nombre de columna si contiene espacios
+        safe_first_col = f'`{first_col}`' if ' ' in first_col else first_col
         examples['group_by'] = {
             'name': f'Agrupación por {first_col}',
-            'query': f'SELECT {first_col}, COUNT(*) as count FROM data GROUP BY {first_col} LIMIT 10',
+            'query': f'SELECT {safe_first_col}, COUNT(*) as count FROM data GROUP BY {safe_first_col} LIMIT 10',
             'description': f'Conteo por categorías de {first_col}'
         }
     
